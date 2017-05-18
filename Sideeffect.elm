@@ -2,7 +2,14 @@ module Sideeffect exposing (..)
 
 import Html exposing (..)
 import Html.Events exposing (..)
-import Random
+import Http
+import Json.Decode
+import Json.Decode.Pipeline
+
+
+type alias Random =
+    { rnd : Int
+    }
 
 
 type alias Model =
@@ -10,8 +17,8 @@ type alias Model =
 
 
 type Msg
-    = NewRndVal Int
-    | ReqRndVal
+    = ReqRndVal
+    | NewRndVal (Result Http.Error Random)
 
 
 init : ( Model, Cmd Msg )
@@ -23,10 +30,13 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         ReqRndVal ->
-            ( model, Random.generate NewRndVal (Random.int 1 100) )
+            ( model, makeRESTRequestForRnd NewRndVal )
 
-        NewRndVal value ->
-            ( value, Cmd.none )
+        NewRndVal (Ok rnd) ->
+            ( rnd.rnd, Cmd.none )
+
+        NewRndVal (Err error) ->
+            ( model, Cmd.none )
 
 
 view : Model -> Html Msg
@@ -50,3 +60,22 @@ main =
         , update = update
         , subscriptions = subscriptions
         }
+
+
+
+--
+
+
+makeRESTRequestForRnd : (Result Http.Error Random -> msg) -> Cmd msg
+makeRESTRequestForRnd msg =
+    let
+        getRandomRequest =
+            Http.get ("http://localhost:4567/random") decodeRandom
+    in
+        Http.send msg getRandomRequest
+
+
+decodeRandom : Json.Decode.Decoder Random
+decodeRandom =
+    Json.Decode.Pipeline.decode Random
+        |> Json.Decode.Pipeline.required "rnd" (Json.Decode.int)
